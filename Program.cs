@@ -41,47 +41,61 @@ namespace LineCount
 
             [Option('d', "debug", Required = false, HelpText = "debug tool")]
             public bool bDebug { get; set; } = false;
+
+            [Option('c', "cccs", Required = false, HelpText = "condiction compile code statistic")]
+            public bool bCCCS { get; set; } = false;
         }
-        static void DBG(string format, int lineNum, string line)
+        static void DBG(string format, int lineNum, int lineCount, string line)
         { 
             if(bVerbos && bDebug)
-                Console.WriteLine(format, lineNum, line);
+                Console.WriteLine(format, lineNum, lineCount, line);
         }
 
         static bool bVerbos = false;
         static bool bByFile = false;
         static bool bDebug = false;
+        static bool bCCCS = false;
 
         static string[] fileExts = { ".cpp", ".h", ".c", ".hpp", ".inl"};
         static string[] exclusiveDirs = {};
-        static void CountInFile(string filePath, ref int totalCommentNum, ref int totalBlankNum, ref int totalCodeNum, ref int totalMacroNum, ref string[] skipMacro)
+        static Dictionary<string, int> cccsDict = new Dictionary<string, int>();
+        static HashSet<string> skipMacros = new HashSet<string>();
+
+        static void CountInFile(string filePath, ref int totalCommentNum, ref int totalBlankNum, ref int totalCodeNum, ref int totalMacroNum)
         {
             int commentNum = 0;
             int blankNum = 0;
             int codeNum = 0;
             int macroNum = 0;
+
+            int lineNum = 0;
             try
             {
                 using (StreamReader reader = new StreamReader(filePath))
                 {
                     string line;
                     Stack<CountLineStat> countStatStack = new Stack<CountLineStat>();
+                    Stack<string> macroNameStack = new Stack<string>();
+                    macroNameStack.Push("");
+                    string curMacroName = macroNameStack.Peek();
                     countStatStack.Push(CountLineStat.CLS_NONE);
                     CountLineStat curStat = countStatStack.Peek();
                     while ((line = reader.ReadLine()) != null)
                     {
+                        lineNum++;
+
                         line = line.TrimStart();
                         if (line.Length == 0)
                         {
                             blankNum++;
-                            DBG("BL: {0}", blankNum, line);
+                            DBG("{0:0000} BL: {1}", lineNum, blankNum, line);
 
                             continue;
                         }
                         if (line.StartsWith("//"))
                         {
                             commentNum++;
-                            DBG("CM: {0}\t{1}", commentNum, line);
+                            DBG("{0:0000} CM: {1}\t{2}", lineNum, commentNum, line);
                         
                             continue;
                         }
@@ -94,20 +108,40 @@ namespace LineCount
                                 countStatStack.Pop();
                                 curStat = countStatStack.Peek();
                             }
-                            DBG("CM: {0}\t{1}", commentNum, line);
+                            DBG("{0:0000} CM: {1}\t{2}", lineNum, commentNum, line);
                             continue;
                         }
 
                         if (curStat == CountLineStat.CLS_MACRO || curStat == CountLineStat.CLS_NEST_MACRO)
                         {
-                            macroNum++;
+                            bool bStepIn = line.StartsWith("#if");
+
+                            if (bCCCS && !bStepIn)
+                            {
+                                if (!cccsDict.ContainsKey(curMacroName))
+                                {
+                                    DBG("{0:0000} ERROR: {1}\t macroName:{2}", lineNum, macroNum, curMacroName);
+                                }
+                                cccsDict[curMacroName]++;
+                            }
+
                             if (line.StartsWith("#endif"))
                             {
                                 countStatStack.Pop();
                                 curStat = countStatStack.Peek();
+                                if (bCCCS)
+                                {
+                                    macroNameStack.Pop();
+                                    curMacroName = macroNameStack.Peek();
+                                }
                             }
-                            DBG("MC: {0}\t{1}", macroNum, line);
-                            continue;
+                            
+                            if (!bStepIn)
+                            {
+                                macroNum++;
+                                DBG("{0:0000} MC: {1}\t{2}", lineNum, macroNum, line);
+                                continue;
+                            }
                         }
 
                         if (line.StartsWith("/*"))
@@ -116,13 +150,13 @@ namespace LineCount
                             if (line.EndsWith("*/"))
                             {
                                 commentNum++;
-                                DBG("CM: {0}\t{1}", commentNum, line);
+                                DBG("{0:0000} CM: {1}\t{2}", lineNum, commentNum, line);
                                 continue;
                             }
                             else if (line.Contains("*/"))
                             {
                                 codeNum++;
-                                DBG("C-: {0}\t{1}", codeNum, line);
+                                DBG("{0:0000} C-: {1}\t{2}", lineNum, codeNum, line);
                             }
                             else
                             {
@@ -130,24 +164,40 @@ namespace LineCount
                                 curStat = countStatStack.Peek();
                             }
                             commentNum++;
-                            DBG("C-: {0}\t{1}", commentNum, line);
+                            DBG("{0:0000} C-: {1}\t{2}", lineNum, commentNum, line);
                             continue;
                         }
                         if (line.StartsWith("#if"))
                         {
+                            if (bCCCS)
+                            {
+                                macroNameStack.Push(line);
+                                curMacroName = macroNameStack.Peek();
+
+                                if (!cccsDict.ContainsKey(curMacroName))
+                                    cccsDict.Add(curMacroName, 0);
+                                cccsDict[curMacroName]++;
+
+                                string[] splitor = { " ", "&&", "||" };
+                                string[] macros = line.Split(splitor, StringSplitOptions.RemoveEmptyEntries);
+                                for (int i = 1; i < macros.Length; i++) //skip #if
+                                {
+                                    skipMacros.Add(macros[i]);
+                                }
+                            }
                             if (curStat == CountLineStat.CLS_MACRO || curStat == CountLineStat.CLS_NEST_MACRO)
                             {
                                 countStatStack.Push(CountLineStat.CLS_NEST_MACRO);
                                 curStat = countStatStack.Peek();
                                 macroNum++;
-                                DBG("MC: {0}\t{1}", macroNum, line);
+                                DBG("{0:0000} MC: {1}\t{2}", lineNum, macroNum, line);
                                 continue;
                             }
                             else
                             {
                                 bool isskipMacro = false;
 
-                                foreach(string macro in skipMacro)
+                                foreach(string macro in skipMacros)
                                 {
                                     if (macro.Length == 0)
                                         break;
@@ -156,7 +206,7 @@ namespace LineCount
                                         countStatStack.Push(CountLineStat.CLS_MACRO);
                                         curStat = countStatStack.Peek();
                                         macroNum++;
-                                        DBG("MC: {0}\t{1}", macroNum, line);
+                                        DBG("{0:0000} MC: {1}\t{2}", lineNum, macroNum, line);
                                         isskipMacro = true;
                                         break;
                                     }
@@ -170,7 +220,7 @@ namespace LineCount
                             //do not handle it yet.
                         }
                         codeNum++;
-                        DBG("CO: {0}\t{1}", codeNum, line);
+                        DBG("{0:0000} CO: {1}\t{2}", lineNum, codeNum, line);
                     }
                 }
             }
@@ -196,7 +246,7 @@ namespace LineCount
             }
         }
 
-        static void CountInDirectory(string fileDir, ref int fileNum, ref int commentNum, ref int blankNum, ref int codeNum, ref int macroNum, ref string[] skipMacros, bool bRecursive)
+        static void CountInDirectory(string fileDir, ref int fileNum, ref int commentNum, ref int blankNum, ref int codeNum, ref int macroNum, bool bRecursive)
         {
             foreach (string exclusiveDir in exclusiveDirs)
             {
@@ -224,7 +274,7 @@ namespace LineCount
                         if (ext == fileExt)
                         {
                             fileNum++;
-                            Program.CountInFile(filePath, ref commentNum, ref blankNum, ref codeNum, ref macroNum, ref skipMacros);
+                            Program.CountInFile(filePath, ref commentNum, ref blankNum, ref codeNum, ref macroNum);
                             break;
                         }
                     }
@@ -236,7 +286,7 @@ namespace LineCount
                     string[] folders = Directory.GetDirectories(fileDir);
                     foreach (string folder in folders)
                     {
-                        CountInDirectory(folder, ref fileNum, ref commentNum, ref blankNum, ref codeNum, ref macroNum, ref skipMacros, bRecursive);
+                        CountInDirectory(folder, ref fileNum, ref commentNum, ref blankNum, ref codeNum, ref macroNum, bRecursive);
                     }
                 }
             }
@@ -272,12 +322,15 @@ namespace LineCount
                 exclusiveDirs[i] = exclusiveDirs[i].ToLower();
             }
 
-            string[] skipMacros = option.skipMacroString.Split(',');
+            string[] arrSkipMacros = option.skipMacroString.Split(new char [] {','}, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string item in arrSkipMacros)
+                skipMacros.Add(item);
             string fileDir = Path.GetFullPath(option.filePath);
             bool bRecursive = option.bRecursive;
             bVerbos = option.bVerbos;
             bByFile = option.bByFile;
             bDebug = option.bDebug;
+            bCCCS = option.bCCCS;
 
             if (bByFile && bVerbos)
             {
@@ -288,13 +341,13 @@ namespace LineCount
             if (Directory.Exists(fileDir))
             {
                 shortName = Path.GetFileName(fileDir);
-                Program.CountInDirectory(fileDir, ref fileNum, ref commentNum, ref blankNum, ref codeNum, ref macroNum, ref skipMacros, bRecursive);
+                Program.CountInDirectory(fileDir, ref fileNum, ref commentNum, ref blankNum, ref codeNum, ref macroNum, bRecursive);
             }
             else if (File.Exists(fileDir))
             {
                 fileNum = 1;
                 shortName = Path.GetFileName(fileDir);
-                Program.CountInFile(fileDir, ref commentNum, ref blankNum, ref codeNum, ref macroNum, ref skipMacros);
+                Program.CountInFile(fileDir, ref commentNum, ref blankNum, ref codeNum, ref macroNum);
             }
             else
             {
@@ -313,6 +366,15 @@ namespace LineCount
             else
             {
                 Console.WriteLine("{0} {1}", shortName, codeNum);
+            }
+
+            if (bCCCS)
+            {
+                var sortedDict = from objDic in cccsDict orderby objDic.Value descending select objDic;
+                foreach (KeyValuePair<string, int> kv in sortedDict)
+                {
+                    Console.WriteLine("{0} {1}", kv.Key, kv.Value);
+                }
             }
         }
     }
