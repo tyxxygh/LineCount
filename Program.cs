@@ -80,6 +80,10 @@ namespace LineCount
                     string curMacroName = macroNameStack.Peek();
                     countStatStack.Push(CountLineStat.CLS_NONE);
                     CountLineStat curStat = countStatStack.Peek();
+
+                    List<int> macroCountStack = new List<int>();
+                    macroCountStack.Add(0);
+
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNum++;
@@ -129,16 +133,25 @@ namespace LineCount
                             {
                                 countStatStack.Pop();
                                 curStat = countStatStack.Peek();
+
+                                int innerMC = macroCountStack[0];
+                                macroCountStack.RemoveAt(0);
+
                                 if (bCCCS)
                                 {
                                     macroNameStack.Pop();
                                     curMacroName = macroNameStack.Peek();
+                                    if (curMacroName.Length != 0)
+                                    {
+                                        cccsDict[curMacroName] += innerMC;
+                                    }
                                 }
                             }
                             
                             if (!bStepIn)
                             {
                                 macroNum++;
+                                macroCountStack[0] += 1;
                                 DBG("{0:0000} MC: {1}\t{2}", lineNum, macroNum, line);
                                 continue;
                             }
@@ -185,11 +198,13 @@ namespace LineCount
                                     skipMacros.Add(macros[i]);
                                 }
                             }
+                            macroCountStack.Insert(0, 1);
                             if (curStat == CountLineStat.CLS_MACRO || curStat == CountLineStat.CLS_NEST_MACRO)
                             {
                                 countStatStack.Push(CountLineStat.CLS_NEST_MACRO);
                                 curStat = countStatStack.Peek();
                                 macroNum++;
+                                macroCountStack[0] += 1;
                                 DBG("{0:0000} MC: {1}\t{2}", lineNum, macroNum, line);
                                 continue;
                             }
@@ -207,7 +222,7 @@ namespace LineCount
                                         curStat = countStatStack.Peek();
                                         macroNum++;
                                         DBG("{0:0000} MC: {1}\t{2}", lineNum, macroNum, line);
-                                        isskipMacro = true;
+                                        isskipMacro = true; 
                                         break;
                                     }
                                 }
