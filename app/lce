@@ -71,7 +71,7 @@ modules=($baseDir/Runtime/ApplicationCore
 
 
 if [[ $printCore -eq 1 ]] ; then
-	insert_element modules 1 '$baseDir/Runtime/Core'
+	insert_element modules 1 "$baseDir/Runtime/Core"
 fi
 
 totalLine=0
