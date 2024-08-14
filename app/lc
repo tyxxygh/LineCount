@@ -4,4 +4,4 @@ trimMacro="WITH_EDITOR,0,LOGTRACE_ENABLED,WITH_EDITOR_ONLY_DATA,UE_TRACE_ENABLED
 
 exclusiveDir=Android,Apple,HoloLens,IOS,Lumin,Mac,Unix,Linux,Test
 
-LineCount $1 -s $trimMacro -e $exclusiveDir
+LineCount $1 $2 $3 $4 $5 $6 $7 -s $trimMacro -e $exclusiveDir

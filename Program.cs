@@ -36,8 +36,11 @@ namespace LineCount
             [Option('v', "verbos", Required = false, HelpText = "showing detail result")]
             public bool bVerbos { get; set; } = false;
 
-            [Option('f', "by-file", Required = false, HelpText = "showing detail result")]
+            [Option('f', "by-file", Required = false, HelpText = "show result for each file (ordered by count)")]
             public bool bByFile { get; set; } = false;
+            
+            [Option('o', "order", Required = false, HelpText = "show result for each file (ordered by count)")]
+            public bool bByOrder { get; set; } = false;
 
             [Option('d', "debug", Required = false, HelpText = "debug tool")]
             public bool bDebug { get; set; } = false;
@@ -53,6 +56,7 @@ namespace LineCount
 
         static bool bVerbos = false;
         static bool bByFile = false;
+        static bool bByOrder = false;
         static bool bDebug = false;
         static bool bCCCS = false;
 
@@ -61,6 +65,7 @@ namespace LineCount
         static Dictionary<string, int> cccsDict = new Dictionary<string, int>();
         static HashSet<string> skipMacros = new HashSet<string>();
 
+        static Dictionary<string, int> fileCountDict = new Dictionary<string, int>();
         static void CountInFile(string filePath, ref int totalCommentNum, ref int totalBlankNum, ref int totalCodeNum, ref int totalMacroNum)
         {
             int commentNum = 0;
@@ -256,7 +261,8 @@ namespace LineCount
                 }
                 else
                 {
-                    Console.WriteLine("{0} {1}", filePath, codeNum);
+                    //Console.WriteLine("{0} {1}", filePath, codeNum);
+                    fileCountDict.Add(filePath, codeNum);
                 }
             }
         }
@@ -344,6 +350,11 @@ namespace LineCount
             bool bRecursive = option.bRecursive;
             bVerbos = option.bVerbos;
             bByFile = option.bByFile;
+            bByOrder = option.bByOrder;
+            if (bByOrder)
+            {
+                bByFile = true;
+            }
             bDebug = option.bDebug;
             bCCCS = option.bCCCS;
 
@@ -369,14 +380,34 @@ namespace LineCount
                 shortName = Path.GetFileName(fileDir);
             }
 
-            if (bByFile)
+            if (bByFile && !bVerbos)
             {
+                if (bByOrder)
+                {
+                    var sortedDict = from objDic in fileCountDict orderby objDic.Value ascending select objDic;
+                    foreach (KeyValuePair<string, int> item in sortedDict)
+                    {
+                        Console.WriteLine("{0} {1}", item.Key, item.Value);
+                    }
+                }
+                else
+                {
+                    foreach (KeyValuePair<string, int> item in fileCountDict)
+                    {
+                        Console.WriteLine("{0} {1}", item.Key, item.Value);
+                    }
+                }
+
                 Console.WriteLine("---------------summary-----------------");
             }
             if (bVerbos || bByFile)
             {
                 Console.WriteLine("files  blank  comment  skipMicro   code");
                 Console.WriteLine(" {0} \t {1} \t  {2} \t {3} \t    {4}", fileNum, blankNum, commentNum, macroNum, codeNum);
+                if (bVerbos && bByOrder)
+                {
+                    Console.WriteLine("\n*warning: verbos showing not compatible with by-order, ordering ignored");
+                }
             }
             else
             {

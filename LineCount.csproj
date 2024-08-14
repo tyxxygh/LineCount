@@ -66,6 +66,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="app\lc" />
+    <None Include="app\lce" />
+    <None Include="app\lcf" />
+    <None Include="app\readme.md" />
     <None Include="packages.config" />
     <None Include="README.md" />
   </ItemGroup>

@@ -11,7 +11,8 @@ LineCount.exe path [option]
 	-s --skipMacro £ºskip codes surround by #if XXX #endif, case insensitive.
 	-r --recursive : recursive count in dir, default is true.
 	-v --verbos    : show verbos result.
-	-f --by-file   : show result for each file.
+	-f --by-file   : show result for each file (ordered by file path).
+	-o --by-order	: show result for each file (ordered by count, no compatible with verbos).
 	-d --debug     : debug this tool to see if it counts like what you'v expected.
 	-c --cccs      : show condiction compile code statistic, -s will be ignore.
 
